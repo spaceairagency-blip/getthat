@@ -1,0 +1,854 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GetThatSquishy 🐾</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg-a:#EAF8F0;
+    --bg-b:#DCF3E8;
+    --card:#FFFFFF;
+    --pink:#FF6FA0;
+    --pink-dark:#E0508A;
+    --yellow:#FFD23F;
+    --sky:#6FC6FF;
+    --plum:#3D2140;
+    --plum-soft:#6b5570;
+    --green:#4ECD8B;
+    --red:#FF6B6B;
+    --shadow: rgba(61,33,64,0.18);
+    --radius-blob: 42% 58% 61% 39% / 45% 40% 60% 55%;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:'Nunito', sans-serif;
+    background: radial-gradient(circle at 15% 10%, var(--bg-b), var(--bg-a) 60%);
+    color:var(--plum);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+
+  h1,h2,h3, .display{
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    margin:0;
+  }
+
+  .screen{
+    width:100%;
+    max-width:520px;
+    background:var(--card);
+    border-radius:32px;
+    box-shadow: 0 20px 40px var(--shadow);
+    padding:32px 28px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .hidden{display:none !important;}
+
+  /* ---------- Squish signature animation ---------- */
+  @keyframes squish-idle{
+    0%,100%{ transform: scale(1,1) translateY(0); }
+    50%{ transform: scale(1.03,0.97) translateY(2px); }
+  }
+  @keyframes squish-press{
+    0%{ transform: scale(1,1); }
+    40%{ transform: scale(1.18,0.8); }
+    70%{ transform: scale(0.92,1.08); }
+    100%{ transform: scale(1,1); }
+  }
+  .squishable{ transition: transform .08s ease; }
+  .squishable:active{ animation: squish-press .35s ease; }
+
+  /* ---------- Buttons ---------- */
+  button{
+    font-family:'Baloo 2', cursive;
+    border:none;
+    cursor:pointer;
+    color:#fff;
+    border-radius:999px;
+    padding:14px 22px;
+    font-size:16px;
+    font-weight:700;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.08);
+  }
+  button:disabled{ opacity:.45; cursor:not-allowed; box-shadow:none; transform:none !important; animation:none !important;}
+  .btn-primary{ background: linear-gradient(180deg, var(--pink), var(--pink-dark)); }
+  .btn-secondary{ background: linear-gradient(180deg, var(--sky), #4aa8e8); }
+  .btn-yellow{ background: linear-gradient(180deg, #FFDE71, #F5B93C); color:var(--plum); }
+  .btn-green{ background: linear-gradient(180deg, #7BE0AA, var(--green)); }
+  .btn-ghost{ background:transparent; color:var(--plum-soft); box-shadow:none; text-decoration:underline; padding:6px 8px; font-size:13px;}
+
+  /* ---------- Start screen ---------- */
+  .logo-row{ display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:6px;}
+  .logo-row .display{ font-size:30px; color:var(--pink-dark); letter-spacing:.5px;}
+  .subtitle{ text-align:center; color:var(--plum-soft); margin-bottom:24px; font-weight:600; font-size:14px;}
+
+  label.field-label{ font-weight:800; font-size:13px; color:var(--plum-soft); display:block; margin:18px 0 8px;}
+  input[type="text"], input[type="email"], input[type="password"], input[type="url"], textarea{
+    width:100%;
+    padding:12px 14px;
+    border-radius:16px;
+    border:2px solid #eee2ef;
+    font-family:'Nunito',sans-serif;
+    font-size:15px;
+    outline:none;
+    background:#FBF9FC;
+  }
+  input:focus, textarea:focus{ border-color: var(--pink); }
+
+  .cat-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .cat-card{
+    border:3px solid transparent;
+    border-radius:24px;
+    background:#F7F4FA;
+    padding:14px 8px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s, transform .15s;
+  }
+  .cat-card .emoji{ font-size:40px; display:block; margin-bottom:6px; }
+  .cat-card .name{ font-weight:800; font-size:14px; }
+  .cat-card.selected{ border-color: var(--pink); background:#FFEFF4; transform: translateY(-2px); }
+
+  #start-btn{ width:100%; margin-top:24px; padding:16px; font-size:18px;}
+
+  /* ---------- Game screen ---------- */
+  .topbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .stat{ text-align:center; }
+  .stat .val{ font-family:'Baloo 2',cursive; font-size:22px; font-weight:800; }
+  .stat .lbl{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--plum-soft); font-weight:800;}
+  #timer.low{ color: var(--red); animation: squish-idle .5s infinite; }
+
+  .stage{
+    background: linear-gradient(180deg,#F3FBF6,#E7F6EE);
+    border-radius: var(--radius-blob);
+    padding:28px 10px;
+    text-align:center;
+    margin:16px 0 10px;
+  }
+  #cat-emoji{ font-size:88px; display:inline-block; animation: squish-idle 2.6s ease-in-out infinite; }
+  #cat-mood-text{ font-weight:800; color:var(--plum-soft); font-size:13px; margin-top:4px;}
+
+  .health-wrap{ margin:14px 0 18px; }
+  .health-label-row{ display:flex; justify-content:space-between; font-weight:800; font-size:12px; color:var(--plum-soft); margin-bottom:6px;}
+  .health-track{ background:#EFE9F2; border-radius:999px; height:20px; overflow:hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.08);}
+  .health-fill{ height:100%; border-radius:999px; background:linear-gradient(90deg, var(--green), #9be8bb); transition: width .4s ease, background .4s ease; }
+  .health-fill.mid{ background:linear-gradient(90deg, var(--yellow), #ffe08a); }
+  .health-fill.low{ background:linear-gradient(90deg, var(--red), #ff9d9d); }
+
+  .action-bar{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .action-bar button{ font-size:13px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .action-bar button .icon{ font-size:22px; }
+
+  /* ---------- Math modal ---------- */
+  .overlay{
+    position:absolute; inset:0; background:rgba(61,33,64,0.55);
+    display:flex; align-items:center; justify-content:center; padding:24px; border-radius:32px;
+  }
+  .math-card{ background:#fff; border-radius:26px; padding:26px 22px; width:100%; max-width:360px; text-align:center; }
+  .math-q{ font-size:28px; font-weight:800; margin:10px 0 18px; }
+  .math-choices{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .math-choices button{ font-size:18px; }
+  .math-feedback{ margin-top:12px; font-weight:800; min-height:20px; }
+
+  /* ---------- End screen ---------- */
+  #end-headline{ text-align:center; color:var(--pink-dark); }
+  .end-stats{ display:flex; justify-content:center; gap:28px; margin:14px 0 18px; }
+  .prize-box{ text-align:center; background:#FFF7E8; border-radius:24px; padding:16px; margin-bottom:18px; }
+  .prize-box img{ max-width:140px; border-radius:18px; margin-top:8px; }
+  table.leaderboard{ width:100%; border-collapse:collapse; font-size:14px; }
+  table.leaderboard th{ text-align:left; font-size:11px; text-transform:uppercase; color:var(--plum-soft); padding:6px 8px; border-bottom:2px solid #f0e9f2;}
+  table.leaderboard td{ padding:8px; border-bottom:1px solid #f5f1f6; }
+  table.leaderboard tr.me{ background:#FFEFF4; font-weight:800; }
+  #play-again-btn{ width:100%; margin-top:18px; padding:16px;}
+
+  /* ---------- Admin ---------- */
+  #admin-fab{
+    position:fixed; bottom:16px; right:16px; background:#fff; color:var(--plum-soft);
+    border-radius:999px; padding:8px 14px; font-size:12px; box-shadow:0 6px 16px var(--shadow); opacity:.55;
+  }
+  #admin-fab:hover{ opacity:1; }
+  .admin-overlay{
+    position:fixed; inset:0; background:rgba(20,10,25,0.55); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .admin-card{ background:#fff; border-radius:24px; padding:26px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
+  .prize-row{ display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid #f2eef4; }
+  .prize-row img{ width:44px; height:44px; object-fit:cover; border-radius:10px; }
+  .prize-row .meta{ flex:1; font-size:13px; }
+  .prize-row .meta .nm{ font-weight:800; }
+  .prize-row .actions{ display:flex; gap:6px; }
+  .prize-row .actions button{ padding:6px 10px; font-size:12px; }
+  .msg{ font-size:13px; font-weight:700; margin-top:8px; }
+  .msg.err{ color:var(--red); }
+  .msg.ok{ color:var(--green); }
+</style>
+</head>
+<body>
+
+<!-- ============ START SCREEN ============ -->
+<div id="screen-start" class="screen">
+  <div class="logo-row">
+    <span style="font-size:30px;">🐱</span>
+    <span class="display">GetThatSquishy</span>
+  </div>
+  <p class="subtitle">Take care of your cat, answer brain teasers, and race the clock to win a Squishy!</p>
+
+  <label class="field-label" for="player-name">Your name</label>
+  <input type="text" id="player-name" maxlength="18" placeholder="e.g. Star Sprinkle">
+
+  <label class="field-label">Pick your cat</label>
+  <div class="cat-grid" id="cat-grid">
+    <div class="cat-card squishable" data-cat="Mochi" data-emoji="🐱">
+      <span class="emoji">🐱</span><span class="name">Mochi</span>
+    </div>
+    <div class="cat-card squishable" data-cat="Ginger" data-emoji="🐈">
+      <span class="emoji">🐈</span><span class="name">Ginger</span>
+    </div>
+    <div class="cat-card squishable" data-cat="Shadow" data-emoji="🐈‍⬛">
+      <span class="emoji">🐈‍⬛</span><span class="name">Shadow</span>
+    </div>
+    <div class="cat-card squishable" data-cat="Tiger" data-emoji="🐯">
+      <span class="emoji">🐯</span><span class="name">Tiger</span>
+    </div>
+  </div>
+
+  <button id="start-btn" class="btn-primary squishable" disabled>Start Playing</button>
+  <div id="start-msg" class="msg err"></div>
+</div>
+
+<!-- ============ GAME SCREEN ============ -->
+<div id="screen-game" class="screen hidden">
+  <div class="topbar">
+    <div class="stat"><div class="val" id="timer">5:00</div><div class="lbl">Time Left</div></div>
+    <div class="stat"><div class="val" id="score-val">0</div><div class="lbl">Score</div></div>
+  </div>
+
+  <div class="stage">
+    <span id="cat-emoji">🐱</span>
+    <div id="cat-mood-text">Feeling great!</div>
+  </div>
+
+  <div class="health-wrap">
+    <div class="health-label-row"><span>Health</span><span id="health-pct">100%</span></div>
+    <div class="health-track"><div id="health-fill" class="health-fill" style="width:100%;"></div></div>
+  </div>
+
+  <div class="action-bar">
+    <button id="btn-feed" class="btn-green squishable"><span class="icon">🍗</span>Feed</button>
+    <button id="btn-math" class="btn-yellow squishable"><span class="icon">🧮</span>Math Challenge</button>
+    <button id="btn-hug" class="btn-secondary squishable"><span class="icon">🤗</span>Hug</button>
+  </div>
+
+  <div id="math-overlay" class="overlay hidden">
+    <div class="math-card">
+      <h3>Brain Teaser!</h3>
+      <div class="math-q" id="math-question">What is 90+7?</div>
+      <div class="math-choices" id="math-choices"></div>
+      <div class="math-feedback" id="math-feedback"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ END SCREEN ============ -->
+<div id="screen-end" class="screen hidden">
+  <h2 id="end-headline">Time's up!</h2>
+  <div class="end-stats">
+    <div class="stat"><div class="val" id="final-score">0</div><div class="lbl">Final Score</div></div>
+    <div class="stat"><div class="val" id="final-time">0:00</div><div class="lbl">Time Remaining</div></div>
+  </div>
+
+  <div id="prize-box" class="prize-box hidden">
+    <div style="font-weight:800;">🎉 You earned a Squishy!</div>
+    <img id="prize-img" src="" alt="Squishy prize">
+    <div id="prize-name" style="font-weight:800; margin-top:6px;"></div>
+  </div>
+
+  <h3 style="margin-bottom:8px;">Leaderboard</h3>
+  <table class="leaderboard">
+    <thead><tr><th>#</th><th>Name</th><th>Cat</th><th>Score</th><th>Time Left</th></tr></thead>
+    <tbody id="leaderboard-body"><tr><td colspan="5">Loading…</td></tr></tbody>
+  </table>
+
+  <button id="play-again-btn" class="btn-primary squishable">Play Again</button>
+</div>
+
+<!-- ============ ADMIN ============ -->
+<button id="admin-fab" class="squishable">Admin</button>
+
+<div id="admin-overlay" class="admin-overlay hidden">
+  <div class="admin-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3>Squishy Prize Admin</h3>
+      <button class="btn-ghost" id="admin-close">Close</button>
+    </div>
+
+    <div id="admin-login-view">
+      <label class="field-label">Email</label>
+      <input type="email" id="admin-email">
+      <label class="field-label">Password</label>
+      <input type="password" id="admin-password">
+      <button id="admin-login-btn" class="btn-primary squishable" style="margin-top:16px; width:100%;">Log In</button>
+      <div id="admin-login-msg" class="msg err"></div>
+      <p style="font-size:12px; color:var(--plum-soft); margin-top:14px;">
+        Admin accounts are created in the Supabase dashboard under Authentication → Users.
+        Only signed-in users can add or remove prizes (enforced by Row Level Security).
+      </p>
+    </div>
+
+    <div id="admin-manage-view" class="hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:13px; color:var(--plum-soft);">Signed in as <b id="admin-user-email"></b></span>
+        <button class="btn-ghost" id="admin-logout-btn">Log out</button>
+      </div>
+
+      <h3 style="margin-top:18px;">Add a Squishy</h3>
+      <label class="field-label">Name</label>
+      <input type="text" id="prize-name-input" placeholder="e.g. Rainbow Kitty Squishy">
+      <label class="field-label">Image URL</label>
+      <input type="url" id="prize-url-input" placeholder="https://…">
+      <label class="field-label">Description (optional)</label>
+      <textarea id="prize-desc-input" rows="2"></textarea>
+      <button id="prize-add-btn" class="btn-green squishable" style="margin-top:14px; width:100%;">Add Prize</button>
+      <div id="prize-add-msg" class="msg"></div>
+
+      <h3 style="margin-top:22px;">Current Prizes</h3>
+      <div id="prize-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   SUPABASE CONFIG — replace with your project's values
+   ===================================================================== */
+const SUPABASE_URL = 'https://tctackfgwnrnaizrvupn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjdGFja2Znd25ybmFpenJ2dXBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMjg0NDQsImV4cCI6MjA5OTcwNDQ0NH0.M12FwIv1dlB7K3ICozRrr5wLYzVQmb6n3M7vYEc0Dow';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* =====================================================================
+   GAME CONSTANTS
+   ===================================================================== */
+const GAME_DURATION = 300;      // 5 minutes, in seconds
+const WIN_SCORE = 100;          // reaching this ends the game early (speed bonus)
+const PRIZE_THRESHOLD = 60;     // score needed to earn a Squishy
+const HEALTH_DECAY_MS = 4000;
+const HEALTH_DECAY_AMT = 2;
+
+const FEED_COOLDOWN_MS = 2200;
+const FEED_HEALTH = 15;
+
+const HUG_COOLDOWN_MS = 1600;
+const HUG_HEALTH = 8;
+const HUG_SCORE = 2;
+
+const MATH_COOLDOWN_MS = 6000;
+const MATH_CORRECT_SCORE = 20;
+const MATH_CORRECT_HEALTH = 10;
+const MATH_WRONG_HEALTH = 6;
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const state = {
+  playerName: '',
+  cat: null,
+  catEmoji: '🐱',
+  health: 100,
+  score: 0,
+  timeLeft: GAME_DURATION,
+  timerId: null,
+  decayId: null,
+  ended: false,
+  endReason: null // 'timeout' | 'maxscore'
+};
+
+/* =====================================================================
+   START SCREEN
+   ===================================================================== */
+const nameInput = document.getElementById('player-name');
+const catGrid = document.getElementById('cat-grid');
+const startBtn = document.getElementById('start-btn');
+const startMsg = document.getElementById('start-msg');
+
+catGrid.addEventListener('click', (e) => {
+  const card = e.target.closest('.cat-card');
+  if (!card) return;
+  document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  state.cat = card.dataset.cat;
+  state.catEmoji = card.dataset.emoji;
+  validateStart();
+});
+
+nameInput.addEventListener('input', validateStart);
+
+function validateStart(){
+  const name = nameInput.value.trim();
+  startBtn.disabled = !(name.length > 0 && state.cat);
+}
+
+startBtn.addEventListener('click', () => {
+  state.playerName = nameInput.value.trim().slice(0, 18);
+  if (!state.playerName || !state.cat){
+    startMsg.textContent = 'Please enter a name and choose a cat.';
+    return;
+  }
+  startGame();
+});
+
+/* =====================================================================
+   GAME LOOP
+   ===================================================================== */
+const screenStart = document.getElementById('screen-start');
+const screenGame = document.getElementById('screen-game');
+const screenEnd = document.getElementById('screen-end');
+
+const timerEl = document.getElementById('timer');
+const scoreValEl = document.getElementById('score-val');
+const healthFillEl = document.getElementById('health-fill');
+const healthPctEl = document.getElementById('health-pct');
+const catEmojiEl = document.getElementById('cat-emoji');
+const catMoodEl = document.getElementById('cat-mood-text');
+
+function startGame(){
+  screenStart.classList.add('hidden');
+  screenGame.classList.remove('hidden');
+
+  state.health = 100;
+  state.score = 0;
+  state.timeLeft = GAME_DURATION;
+  state.ended = false;
+  state.endReason = null;
+
+  catEmojiEl.textContent = state.catEmoji;
+  updateHealthUI();
+  updateScoreUI();
+  updateTimerUI();
+
+  state.timerId = setInterval(tick, 1000);
+  state.decayId = setInterval(decayHealth, HEALTH_DECAY_MS);
+}
+
+function tick(){
+  if (state.ended) return;
+  state.timeLeft--;
+  updateTimerUI();
+  if (state.timeLeft <= 0){
+    state.timeLeft = 0;
+    endGame('timeout');
+  }
+}
+
+function decayHealth(){
+  if (state.ended) return;
+  setHealth(state.health - HEALTH_DECAY_AMT);
+}
+
+function updateTimerUI(){
+  const m = Math.floor(state.timeLeft / 60);
+  const s = state.timeLeft % 60;
+  timerEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  timerEl.classList.toggle('low', state.timeLeft <= 30);
+}
+
+function updateScoreUI(){
+  scoreValEl.textContent = state.score;
+}
+
+function setHealth(val){
+  state.health = Math.max(0, Math.min(100, val));
+  updateHealthUI();
+}
+
+function updateHealthUI(){
+  healthFillEl.style.width = state.health + '%';
+  healthPctEl.textContent = state.health + '%';
+  healthFillEl.classList.remove('mid','low');
+  if (state.health < 30){
+    healthFillEl.classList.add('low');
+    catMoodEl.textContent = 'Feeling low… needs attention!';
+  } else if (state.health < 65){
+    healthFillEl.classList.add('mid');
+    catMoodEl.textContent = 'Doing okay.';
+  } else {
+    catMoodEl.textContent = 'Feeling great!';
+  }
+}
+
+function addScore(amount){
+  state.score += amount;
+  updateScoreUI();
+  if (state.score >= WIN_SCORE){
+    state.score = WIN_SCORE;
+    updateScoreUI();
+    endGame('maxscore');
+  }
+}
+
+/* ---------- Actions ---------- */
+const btnFeed = document.getElementById('btn-feed');
+const btnHug = document.getElementById('btn-hug');
+const btnMath = document.getElementById('btn-math');
+
+function cooldown(btn, ms){
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, ms);
+}
+
+btnFeed.addEventListener('click', () => {
+  if (state.ended) return;
+  setHealth(state.health + FEED_HEALTH);
+  cooldown(btnFeed, FEED_COOLDOWN_MS);
+});
+
+btnHug.addEventListener('click', () => {
+  if (state.ended) return;
+  setHealth(state.health + HUG_HEALTH);
+  addScore(HUG_SCORE);
+  cooldown(btnHug, HUG_COOLDOWN_MS);
+});
+
+/* ---------- Math challenge ---------- */
+const mathOverlay = document.getElementById('math-overlay');
+const mathQuestionEl = document.getElementById('math-question');
+const mathChoicesEl = document.getElementById('math-choices');
+const mathFeedbackEl = document.getElementById('math-feedback');
+
+function generateQuestion(){
+  const ops = ['+', '-', '×'];
+  const op = ops[Math.floor(Math.random() * ops.length)];
+  let a, b, answer;
+  if (op === '+'){
+    a = Math.floor(Math.random()*80)+10;
+    b = Math.floor(Math.random()*80)+5;
+    answer = a + b;
+  } else if (op === '-'){
+    a = Math.floor(Math.random()*80)+20;
+    b = Math.floor(Math.random()*a);
+    answer = a - b;
+  } else {
+    a = Math.floor(Math.random()*11)+2;
+    b = Math.floor(Math.random()*11)+2;
+    answer = a * b;
+  }
+  const choices = new Set([answer]);
+  while (choices.size < 4){
+    const delta = Math.floor(Math.random()*9)-4;
+    const distractor = answer + (delta === 0 ? 5 : delta);
+    if (distractor >= 0) choices.add(distractor);
+  }
+  const shuffled = Array.from(choices).sort(() => Math.random()-0.5);
+  return { text: `What is ${a} ${op} ${b}?`, answer, choices: shuffled };
+}
+
+btnMath.addEventListener('click', () => {
+  if (state.ended) return;
+  const q = generateQuestion();
+  mathQuestionEl.textContent = q.text;
+  mathFeedbackEl.textContent = '';
+  mathChoicesEl.innerHTML = '';
+  q.choices.forEach(choice => {
+    const b = document.createElement('button');
+    b.className = 'btn-secondary squishable';
+    b.textContent = choice;
+    b.addEventListener('click', () => answerMath(choice, q.answer));
+    mathChoicesEl.appendChild(b);
+  });
+  mathOverlay.classList.remove('hidden');
+  btnMath.disabled = true;
+});
+
+function answerMath(choice, answer){
+  const correct = choice === answer;
+  mathFeedbackEl.textContent = correct ? 'Correct! +20 score, +10 health' : `Not quite — the answer was ${answer}.`;
+  mathFeedbackEl.style.color = correct ? 'var(--green)' : 'var(--red)';
+  if (correct){
+    addScore(MATH_CORRECT_SCORE);
+    setHealth(state.health + MATH_CORRECT_HEALTH);
+  } else {
+    setHealth(state.health - MATH_WRONG_HEALTH);
+  }
+  Array.from(mathChoicesEl.children).forEach(b => b.disabled = true);
+  setTimeout(() => {
+    mathOverlay.classList.add('hidden');
+    cooldown(btnMath, MATH_COOLDOWN_MS);
+  }, 1100);
+}
+
+/* =====================================================================
+   END GAME / SCORING / LEADERBOARD
+   ===================================================================== */
+const endHeadline = document.getElementById('end-headline');
+const finalScoreEl = document.getElementById('final-score');
+const finalTimeEl = document.getElementById('final-time');
+const prizeBox = document.getElementById('prize-box');
+const prizeImg = document.getElementById('prize-img');
+const prizeName = document.getElementById('prize-name');
+const leaderboardBody = document.getElementById('leaderboard-body');
+const playAgainBtn = document.getElementById('play-again-btn');
+
+async function endGame(reason){
+  if (state.ended) return;
+  state.ended = true;
+  state.endReason = reason;
+  clearInterval(state.timerId);
+  clearInterval(state.decayId);
+  mathOverlay.classList.add('hidden');
+
+  screenGame.classList.add('hidden');
+  screenEnd.classList.remove('hidden');
+
+  endHeadline.textContent = reason === 'maxscore'
+    ? '🏆 Fun-meter maxed out!'
+    : "⏰ Time's up!";
+
+  finalScoreEl.textContent = state.score;
+  const m = Math.floor(state.timeLeft / 60);
+  const s = state.timeLeft % 60;
+  finalTimeEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+
+  await submitScore();
+  await loadLeaderboard();
+
+  if (state.score >= PRIZE_THRESHOLD){
+    await revealPrize();
+  } else {
+    prizeBox.classList.add('hidden');
+  }
+}
+
+async function submitScore(){
+  try {
+    const { error } = await supabaseClient.from('scores').insert({
+      player_name: state.playerName,
+      cat_character: state.cat,
+      score: state.score,
+      time_remaining_seconds: state.timeLeft
+    });
+    if (error) console.error('Score submit error:', error.message);
+  } catch (err){
+    console.error('Score submit failed:', err);
+  }
+}
+
+async function loadLeaderboard(){
+  leaderboardBody.innerHTML = '<tr><td colspan="5">Loading…</td></tr>';
+  try {
+    const { data, error } = await supabaseClient
+      .from('scores')
+      .select('player_name, cat_character, score, time_remaining_seconds')
+      .order('score', { ascending: false })
+      .order('time_remaining_seconds', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0){
+      leaderboardBody.innerHTML = '<tr><td colspan="5">No scores yet — be the first!</td></tr>';
+      return;
+    }
+
+    leaderboardBody.innerHTML = data.map((row, i) => {
+      const isMe = row.player_name === state.playerName && row.score === state.score;
+      const tm = Math.floor(row.time_remaining_seconds/60) + ':' + (row.time_remaining_seconds%60).toString().padStart(2,'0');
+      return `<tr class="${isMe ? 'me' : ''}">
+        <td>${i+1}</td>
+        <td>${escapeHtml(row.player_name)}</td>
+        <td>${escapeHtml(row.cat_character)}</td>
+        <td>${row.score}</td>
+        <td>${tm}</td>
+      </tr>`;
+    }).join('');
+  } catch (err){
+    console.error('Leaderboard load failed:', err);
+    leaderboardBody.innerHTML = '<tr><td colspan="5">Could not load leaderboard.</td></tr>';
+  }
+}
+
+async function revealPrize(){
+  try {
+    const { data, error } = await supabaseClient
+      .from('squishy_prizes')
+      .select('name, image_url')
+      .eq('active', true);
+    if (error) throw error;
+    if (!data || data.length === 0){
+      prizeBox.classList.add('hidden');
+      return;
+    }
+    const pick = data[Math.floor(Math.random() * data.length)];
+    prizeImg.src = pick.image_url;
+    prizeName.textContent = pick.name;
+    prizeBox.classList.remove('hidden');
+  } catch (err){
+    console.error('Prize load failed:', err);
+    prizeBox.classList.add('hidden');
+  }
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+playAgainBtn.addEventListener('click', () => {
+  screenEnd.classList.add('hidden');
+  screenStart.classList.remove('hidden');
+  document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('selected'));
+  nameInput.value = '';
+  state.cat = null;
+  startBtn.disabled = true;
+  startMsg.textContent = '';
+});
+
+/* =====================================================================
+   ADMIN PANEL
+   ===================================================================== */
+const adminFab = document.getElementById('admin-fab');
+const adminOverlay = document.getElementById('admin-overlay');
+const adminClose = document.getElementById('admin-close');
+const adminLoginView = document.getElementById('admin-login-view');
+const adminManageView = document.getElementById('admin-manage-view');
+const adminEmail = document.getElementById('admin-email');
+const adminPassword = document.getElementById('admin-password');
+const adminLoginBtn = document.getElementById('admin-login-btn');
+const adminLoginMsg = document.getElementById('admin-login-msg');
+const adminUserEmail = document.getElementById('admin-user-email');
+const adminLogoutBtn = document.getElementById('admin-logout-btn');
+const prizeNameInput = document.getElementById('prize-name-input');
+const prizeUrlInput = document.getElementById('prize-url-input');
+const prizeDescInput = document.getElementById('prize-desc-input');
+const prizeAddBtn = document.getElementById('prize-add-btn');
+const prizeAddMsg = document.getElementById('prize-add-msg');
+const prizeListEl = document.getElementById('prize-list');
+
+adminFab.addEventListener('click', async () => {
+  adminOverlay.classList.remove('hidden');
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session){
+    showAdminManage(session.user.email);
+  } else {
+    adminLoginView.classList.remove('hidden');
+    adminManageView.classList.add('hidden');
+  }
+});
+
+adminClose.addEventListener('click', () => adminOverlay.classList.add('hidden'));
+
+adminLoginBtn.addEventListener('click', async () => {
+  adminLoginMsg.textContent = '';
+  const email = adminEmail.value.trim();
+  const password = adminPassword.value;
+  if (!email || !password){
+    adminLoginMsg.textContent = 'Enter email and password.';
+    return;
+  }
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error){
+    adminLoginMsg.textContent = error.message;
+    return;
+  }
+  showAdminManage(data.user.email);
+});
+
+adminLogoutBtn.addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  adminLoginView.classList.remove('hidden');
+  adminManageView.classList.add('hidden');
+  adminEmail.value = '';
+  adminPassword.value = '';
+});
+
+function showAdminManage(email){
+  adminLoginView.classList.add('hidden');
+  adminManageView.classList.remove('hidden');
+  adminUserEmail.textContent = email;
+  loadPrizes();
+}
+
+prizeAddBtn.addEventListener('click', async () => {
+  prizeAddMsg.textContent = '';
+  const name = prizeNameInput.value.trim();
+  const url = prizeUrlInput.value.trim();
+  const desc = prizeDescInput.value.trim();
+  if (!name || !url){
+    prizeAddMsg.textContent = 'Name and image URL are required.';
+    prizeAddMsg.className = 'msg err';
+    return;
+  }
+  const { error } = await supabaseClient.from('squishy_prizes').insert({
+    name, image_url: url, description: desc || null, active: true
+  });
+  if (error){
+    prizeAddMsg.textContent = error.message;
+    prizeAddMsg.className = 'msg err';
+    return;
+  }
+  prizeAddMsg.textContent = 'Prize added!';
+  prizeAddMsg.className = 'msg ok';
+  prizeNameInput.value = '';
+  prizeUrlInput.value = '';
+  prizeDescInput.value = '';
+  loadPrizes();
+});
+
+async function loadPrizes(){
+  prizeListEl.innerHTML = 'Loading…';
+  const { data, error } = await supabaseClient
+    .from('squishy_prizes')
+    .select('id, name, image_url, active')
+    .order('created_at', { ascending: false });
+
+  if (error){
+    prizeListEl.innerHTML = `<div class="msg err">${error.message}</div>`;
+    return;
+  }
+  if (!data || data.length === 0){
+    prizeListEl.innerHTML = '<div style="font-size:13px;color:var(--plum-soft);">No prizes yet.</div>';
+    return;
+  }
+  prizeListEl.innerHTML = '';
+  data.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'prize-row';
+    row.innerHTML = `
+      <img src="${p.image_url}" alt="">
+      <div class="meta"><div class="nm">${escapeHtml(p.name)}</div><div>${p.active ? '✅ Active' : '⏸ Inactive'}</div></div>
+      <div class="actions">
+        <button class="btn-yellow toggle-btn">${p.active ? 'Deactivate' : 'Activate'}</button>
+        <button class="btn-ghost delete-btn" style="color:var(--red);">Delete</button>
+      </div>
+    `;
+    row.querySelector('.toggle-btn').addEventListener('click', () => togglePrize(p.id, !p.active));
+    row.querySelector('.delete-btn').addEventListener('click', () => deletePrize(p.id));
+    prizeListEl.appendChild(row);
+  });
+}
+
+async function togglePrize(id, newActive){
+  const { error } = await supabaseClient.from('squishy_prizes').update({ active: newActive }).eq('id', id);
+  if (error) alert(error.message); else loadPrizes();
+}
+
+async function deletePrize(id){
+  if (!confirm('Delete this prize?')) return;
+  const { error } = await supabaseClient.from('squishy_prizes').delete().eq('id', id);
+  if (error) alert(error.message); else loadPrizes();
+}
+</script>
+</body>
+</html>
